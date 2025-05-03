@@ -65,7 +65,8 @@ app.post('/register', async (req, res) => {
     const { 
       uid, phoneNo, email, name, age, weight, height, gender, 
       healthIssues, allergies, cuisines, goal, doctorNo, extraInfo, 
-      birthDate, activityLevel, dietaryRestrictions, mealPreferences 
+      birthDate, activityLevel, dietaryRestrictions, mealPreferences,
+      medications // Add medications to destructuring
     } = req.body;
 
     console.log("Received data:", req.body);
@@ -75,26 +76,27 @@ app.post('/register', async (req, res) => {
       return res.status(400).send({ status: "error", message: "Missing required fields" });
     }
 
-    // Check if the user already exists
-    const oldUser = await User.findOne({ $or: [{ email: email }, { uid: uid }] });
-    if (oldUser) {
-      return res.status(409).send({ status: "error", message: "User already exists!" });
+    // Validate age for elderly users
+    if (age < 60) {
+      return res.status(400).send({ 
+        status: "error", 
+        message: "This service is only available for users aged 60 and above" 
+      });
     }
 
-    // Generate initial meal plan with nutritional needs
-    console.log("Generating meal plan and calculating nutritional needs...");
+    // Generate initial meal plan with nutritional needs and medication considerations
+    console.log("Generating meal plan with medication considerations...");
     let mealPlanResponse;
     try {
       mealPlanResponse = await getMeal({ 
         age, weight, height, gender, healthIssues, allergies, cuisines, 
-        goal, activityLevel, dietaryRestrictions, mealPreferences 
+        goal, activityLevel, dietaryRestrictions, mealPreferences,
+        medications // Pass medications to meal generation
       });
 
       if (!mealPlanResponse || !mealPlanResponse.mealPlan) {
         throw new Error("Meal plan generation failed");
       }
-
-      console.log("Meal plan generated successfully with nutritional calculations.");
     } catch (error) {
       return res.status(500).send({ 
         status: "error", 
@@ -103,10 +105,7 @@ app.post('/register', async (req, res) => {
       });
     }
 
-    // Extract meal plan and nutritional needs from response
-    const { mealPlan, nutritionalNeeds } = mealPlanResponse;
-
-    // Create or update the user record with complete information
+    // Create or update user with all information including medications
     const createdUser = await User.findOneAndUpdate(
       { uid: uid }, 
       { 
@@ -127,9 +126,10 @@ app.post('/register', async (req, res) => {
         activityLevel,
         dietaryRestrictions,
         mealPreferences,
-        mealPlan,
+        medications, // Add medications to user data
+        mealPlan: mealPlanResponse.mealPlan,
         nutritionalNeeds: {
-          ...nutritionalNeeds,
+          ...mealPlanResponse.nutritionalNeeds,
           lastCalculated: new Date()
         },
         lastMealPlanUpdate: new Date()
@@ -301,39 +301,80 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 app.put('/update-meal-plan/:uid', async (req, res) => {
   try {
     const { uid } = req.params;
-    const { mealPlan } = req.body;
+    const { 
+      goal, allergies, healthIssues, cuisinePreferences,
+      dietaryRestrictions, mealPreferences, activityLevel,
+      medications // Add this to handle medications
+    } = req.body;
 
-    if (!mealPlan) {
-      return res.status(400).json({ 
-        status: "error", 
-        message: "Meal plan is required" 
+    // Validate medications data
+    if (medications && Array.isArray(medications)) {
+      medications.forEach(med => {
+        if (!med.name || !med.timing || !med.dosage) {
+          throw new Error('Invalid medication data: name, timing, and dosage are required');
+        }
       });
     }
 
+    // Get user data
+    const user = await User.findOne({ uid });
+    if (!user) {
+      return res.status(404).json({ status: "error", message: "User not found" });
+    }
+
+    // Generate new meal plan considering medications
+    const mealPlanResponse = await getMeal({
+      age: user.age,
+      weight: user.weight,
+      height: user.height,
+      gender: user.gender,
+      healthIssues,
+      allergies,
+      cuisines: cuisinePreferences,
+      goal,
+      activityLevel,
+      dietaryRestrictions,
+      mealPreferences,
+      medications,
+      nutritionalNeeds: user.nutritionalNeeds// Pass medications to meal generation
+    
+    });
+
+    if (!mealPlanResponse || !mealPlanResponse.mealPlan) {
+      throw new Error("Failed to generate new meal plan");
+    }
+
+    // Update user with new data including medications
     const updatedUser = await User.findOneAndUpdate(
       { uid },
-      { mealPlan },
+      { 
+        mealPlan: mealPlanResponse.mealPlan,
+        lastMealPlanUpdate: new Date(),
+        medications, // Save medications to user data
+        goal,
+        allergies,
+        healthIssues,
+        cuisinePreferences,
+        dietaryRestrictions,
+        mealPreferences,
+        activityLevel,
+
+      },
       { new: true }
     );
 
-    if (!updatedUser) {
-      return res.status(404).json({ 
-        status: "error", 
-        message: "User not found" 
-      });
-    }
-
-    res.status(200).json({ 
-      status: "ok", 
-      message: "Meal plan updated successfully", 
-      user: updatedUser 
+    res.status(200).json({
+      status: "ok",
+      message: "Meal plan updated successfully",
+      user: updatedUser
     });
 
   } catch (error) {
     console.error("Error updating meal plan:", error);
-    res.status(500).json({ 
-      status: "error", 
-      message: "Internal Server Error" 
+    res.status(500).json({
+      status: "error",
+      message: "Failed to update meal plan",
+      error: error.message
     });
   }
 });

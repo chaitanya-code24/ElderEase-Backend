@@ -62,6 +62,11 @@ export async function getGroqChatCompletion(userDetails) {
       Snacks: ${mealDistribution.snacks} kcal
       Dinner: ${mealDistribution.dinner} kcal
 
+      🏥 MEDICATIONS:
+      ${userDetails.medications?.map(med => 
+        `- ${med.name} (${med.dosage}) - Take ${med.timing}${med.withFood ? ' with food' : ''}`
+      ).join('\n') || 'No medications listed'}
+
       Generate a full weekly meal plan (Sunday to Saturday) based on the following user details:
 
       Age: ${userDetails.age}
@@ -76,12 +81,13 @@ export async function getGroqChatCompletion(userDetails) {
       Activity Level: ${userDetails.activityLevel}
       Cuisine Preferences: ${userDetails.cuisines}
 
-      **Requirements:**
-      - 4 meals for a day Breakfast, Lunch, Snacks, Dinner.
-      - Accommodate health concerns (e.g., high blood pressure, diabetes, arthritis), dietary restrictions, and avoid allergens.
-      - Ensure meals are high in fiber, antioxidants, healthy fats, and protein, with balanced portions.
-      - Recipes should be easy to prepare with simple ingredients.
-      - Include food which is mostly indian dont add food like turkey, beef and any other foreign food products. based on user preferences while ensuring they meet dietary needs.
+      **Additional Requirements:**
+      - Consider medication timings and requirements (with/without food)
+      - Schedule meals around medication timings
+      - Avoid food interactions with medications
+      - Ensure appropriate gaps between medications and meals when required
+      - Include specific nutrients that support medication absorption when needed
+      - Account for any dietary restrictions due to medications
 
       **Return only JSON output, without any additional text.** The JSON structure should be:
 

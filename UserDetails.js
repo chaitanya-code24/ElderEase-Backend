@@ -1,6 +1,13 @@
 // UserDetails.js (ES module syntax)
 import mongoose from 'mongoose';
 
+const medicationSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  timing: { type: String, required: true },
+  dosage: { type: String, required: true },
+  withFood: { type: Boolean, default: false }
+});
+
 const userSchema = new mongoose.Schema({
   uid: { type: String, required: true },
   phoneNo: { type: String, required: true },
@@ -21,6 +28,7 @@ const userSchema = new mongoose.Schema({
   dietaryRestrictions: { type: String },
   mealPreferences: { type: String },
   mealPlan: { type: Object },
+  medications: [medicationSchema],
 
   nutritionalNeeds: {
     bmr: Number,

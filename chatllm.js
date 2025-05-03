@@ -230,6 +230,9 @@ User Profile:
 - Allergies: ${user.allergies || 'None'}
 - Diet Restrictions: ${Array.isArray(user.dietaryRestrictions) ? 
     user.dietaryRestrictions.join(', ') : (user.dietaryRestrictions || 'None')}
+- Medications: ${user.medications ? user.medications.map(med => 
+    `${med.name} (${med.dosage}, ${med.timing}, ${med.withFood ? 'with food' : 'without food'})`
+  ).join('; ') : 'None'}
 
 Today's Meals:
 ${getTodaysMeals(user.mealPlan)}
